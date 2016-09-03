@@ -47,7 +47,7 @@ class Annoy(
 
 object Annoy {
   val annoyLib = Native.loadLibrary("annoy", classOf[AnnoyLibrary]).asInstanceOf[AnnoyLibrary]
-
+  
   def create(
     inputFile: String,
     numOfTrees: Int,
@@ -55,53 +55,37 @@ object Annoy {
     metric: Metric = Angular,
     verbose: Boolean = false
   ): Annoy = {
-    def inputLines = Source.fromFile(inputFile).getLines
-
-    val dataset = inputLines
-      .map { line =>
-        val seq = line.split(" ")
-        val id = seq.head.toInt
-        val vector = seq.tail.map(_.toFloat)
-        (id, vector)
-      }
-      .toIterable
-
-    create2(dataset, numOfTrees, outputDir, metric, verbose)
-  }
-
-  def create2(
-    dataset: Iterable[(Int, Array[Float])],
-    numOfTrees: Int,
-    outputDir: String = null,
-    metric: Metric = Angular,
-    verbose: Boolean = false
-  ): Annoy = {
     val diskMode = outputDir != null
-
+    
     if (diskMode) {
       require(File(outputDir).notExists || File(outputDir).isEmpty, "Output directory is not empty.")
       File(outputDir).createIfNotExists(true)
     }
+    
+    def inputLines = Source.fromFile(inputFile).getLines
 
-    val dimension = dataset.head._2.size
+    val dimension = inputLines.next.split(" ").tail.size
     val annoyIndex = metric match {
       case Angular => annoyLib.createAngular(dimension)
       case Euclidean => annoyLib.createEuclidean(dimension)
     }
-
+    
     annoyLib.verbose(annoyIndex, verbose)
-
-    dataset
+    
+    inputLines
+      .map(_.split(" "))
       .zipWithIndex
       .foreach {
-        case ((id, vector), index) =>
+        case (seq, index) =>
+          val id = seq.head.toInt
+          val vector = seq.tail.map(_.toFloat)
           annoyLib.addItem(annoyIndex, index, vector)
       }
-
+    
     annoyLib.build(annoyIndex, numOfTrees)
-
+    
     if (diskMode) {
-      (File(outputDir) / "ids").printLines(dataset.map(_._1.toString).toIterator)
+      (File(outputDir) / "ids").printLines(inputLines.map(_.split(" ").head))
       (File(outputDir) / "dimension").overwrite(dimension.toString)
       (File(outputDir) / "metric").overwrite {
         metric match {
@@ -114,8 +98,8 @@ object Annoy {
       load(outputDir)
     } else {
       new Annoy(
-        dataset.map(_._1).zipWithIndex.toMap,
-        dataset.map(_._1).toSeq,
+        inputLines.map(_.split(" ").head.toInt).zipWithIndex.toMap,
+        inputLines.map(_.split(" ").head.toInt).toSeq,
         annoyIndex,
         dimension
       )
@@ -126,14 +110,14 @@ object Annoy {
     val ids = (File(annoyDir) / "ids")
     val idToIndex = ids.lineIterator.toSeq.map(_.toInt).zipWithIndex.toMap
     val indexToId = ids.lineIterator.toSeq.map(_.toInt)
-
+    
     val dimension = (File(annoyDir) / "dimension").lines.head.toInt
     val annoyIndex = (File(annoyDir) / "metric").lines.head match {
       case "Angular" => annoyLib.createAngular(dimension)
       case "Euclidean" => annoyLib.createEuclidean(dimension)
     }
     annoyLib.load(annoyIndex, (File(annoyDir) / "annoy-index").pathAsString)
-
+    
     new Annoy(idToIndex, indexToId, annoyIndex, dimension)
   }
 }
