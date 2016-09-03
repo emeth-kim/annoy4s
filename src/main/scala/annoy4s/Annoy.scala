@@ -15,10 +15,37 @@
 package annoy4s
 
 import com.sun.jna._
-import better.files._
-import scala.io.Source
 
-class Annoy(
+import scala.collection.mutable.ListBuffer
+
+case class AnnoySingletonLoader(ids: Seq[Int], dimension: Int, metric: Metric, path: String, verbose: Boolean) {
+
+  var model: AnnoyModel = _
+
+  def getModel: AnnoyModel = {
+    if (model == null) {
+      val idToIndex = ids.zipWithIndex.toMap
+      val indexToId = ids
+      val annoyIndex = metric match {
+        case Angular => Annoy.annoyLib.createAngular(dimension)
+        case Euclidean => Annoy.annoyLib.createEuclidean(dimension)
+      }
+      Annoy.annoyLib.load(annoyIndex, path)
+      Annoy.annoyLib.verbose(annoyIndex, verbose)
+      model = new AnnoyModel(idToIndex, indexToId, annoyIndex, dimension)
+    }
+    model
+  }
+
+  def close(): Unit = {
+    if (model != null) {
+      model.close()
+    }
+  }
+
+}
+
+class AnnoyModel(
   idToIndex: Map[Int, Int],
   indexToId: Seq[Int],
   annoyIndex: Pointer,
@@ -46,82 +73,42 @@ class Annoy(
 }
 
 object Annoy {
-  val annoyLib = Native.loadLibrary("annoy", classOf[AnnoyLibrary]).asInstanceOf[AnnoyLibrary]
-  
-  def create(
-    inputFile: String,
-    numOfTrees: Int,
-    outputDir: String = null,
-    metric: Metric = Angular,
-    verbose: Boolean = false
-  ): Annoy = {
-    val diskMode = outputDir != null
-    
-    if (diskMode) {
-      require(File(outputDir).notExists || File(outputDir).isEmpty, "Output directory is not empty.")
-      File(outputDir).createIfNotExists(true)
-    }
-    
-    def inputLines = Source.fromFile(inputFile).getLines
 
-    val dimension = inputLines.next.split(" ").tail.size
+  val annoyLib = Native.loadLibrary("annoy", classOf[AnnoyLibrary]).asInstanceOf[AnnoyLibrary]
+
+  def build(iterator: Iterator[(Int, Array[Float])],
+    dimension: Int, numOfTrees: Int, metric: Metric = Angular,
+    outputFile: String = "annoy-index", verbose: Boolean = false, cleanup: AnnoySingletonLoader => Unit = {l => }): AnnoySingletonLoader = {
+
     val annoyIndex = metric match {
       case Angular => annoyLib.createAngular(dimension)
       case Euclidean => annoyLib.createEuclidean(dimension)
     }
-    
+
     annoyLib.verbose(annoyIndex, verbose)
-    
-    inputLines
-      .map(_.split(" "))
-      .zipWithIndex
-      .foreach {
-        case (seq, index) =>
-          val id = seq.head.toInt
-          val vector = seq.tail.map(_.toFloat)
-          annoyLib.addItem(annoyIndex, index, vector)
-      }
-    
-    annoyLib.build(annoyIndex, numOfTrees)
-    
-    if (diskMode) {
-      (File(outputDir) / "ids").printLines(inputLines.map(_.split(" ").head))
-      (File(outputDir) / "dimension").overwrite(dimension.toString)
-      (File(outputDir) / "metric").overwrite {
-        metric match {
-          case Angular => "Angular"
-          case Euclidean => "Euclidean"
-        }
-      }
-      annoyLib.save(annoyIndex, (File(outputDir) / "annoy-index").pathAsString)
-      annoyLib.deleteIndex(annoyIndex)
-      load(outputDir)
-    } else {
-      new Annoy(
-        inputLines.map(_.split(" ").head.toInt).zipWithIndex.toMap,
-        inputLines.map(_.split(" ").head.toInt).toSeq,
-        annoyIndex,
-        dimension
-      )
+
+    var ids = new ListBuffer[Int]()
+
+    var index = 0
+    iterator.foreach { case (id, vector) =>
+      Annoy.annoyLib.addItem(annoyIndex, index, vector)
+      index += 1
+      ids += id
     }
+
+    annoyLib.build(annoyIndex, numOfTrees)
+    annoyLib.save(annoyIndex, outputFile)
+    annoyLib.deleteIndex(annoyIndex)
+
+    val idsList = ids.result()
+    val loader = AnnoySingletonLoader(idsList, dimension, metric, outputFile, verbose)
+    cleanup(loader)
+    loader
   }
 
-  def load(annoyDir: String): Annoy = {
-    val ids = (File(annoyDir) / "ids")
-    val idToIndex = ids.lineIterator.toSeq.map(_.toInt).zipWithIndex.toMap
-    val indexToId = ids.lineIterator.toSeq.map(_.toInt)
-    
-    val dimension = (File(annoyDir) / "dimension").lines.head.toInt
-    val annoyIndex = (File(annoyDir) / "metric").lines.head match {
-      case "Angular" => annoyLib.createAngular(dimension)
-      case "Euclidean" => annoyLib.createEuclidean(dimension)
-    }
-    annoyLib.load(annoyIndex, (File(annoyDir) / "annoy-index").pathAsString)
-    
-    new Annoy(idToIndex, indexToId, annoyIndex, dimension)
-  }
 }
 
 sealed trait Metric
 case object Angular extends Metric
 case object Euclidean extends Metric
+

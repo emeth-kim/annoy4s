@@ -15,21 +15,15 @@
 package annoy4s
 
 import org.scalatest._
-import better.files._
 
 class AnnoySpec extends FlatSpec with Matchers {
   
-  def getEuclideanInputFile = {
-    val inputFile = File.newTemporaryFile()
-    inputFile.toJava.deleteOnExit()
-    inputFile.appendLines(Seq(
-      "10 1.0 1.0",
-      "11 2.0 1.0",
-      "12 2.0 2.0",
-      "13 3.0 2.0"
-    ):_*)
-    
-    inputFile
+  def getEuclideanInput: Iterator[(Int, Array[Float])] = {
+    Iterator(
+      (10, Array(1.0f, 1.0f)),
+      (11, Array(2.0f, 1.0f)),
+      (12, Array(2.0f, 2.0f)),
+      (13, Array(3.0f, 2.0f)))
   }
   
   def checkEuclideanResult(res: Option[Seq[(Int, Float)]]) = {
@@ -40,40 +34,17 @@ class AnnoySpec extends FlatSpec with Matchers {
   }
   
   "Annoy" should "create/load and query Euclidean file index" in {
-    val inputFile = getEuclideanInputFile
-    
-    val outputDir = File.newTemporaryDirectory()
-    
-    val annoy = Annoy.create(inputFile.pathAsString, 10, outputDir.pathAsString, Euclidean)
-    checkEuclideanResult(annoy.query(10, 4))
-    
-    annoy.close()
-    
-    val annoyReload = Annoy.load(outputDir.pathAsString)
-    checkEuclideanResult(annoyReload.query(10, 4))
-
-    annoyReload.close()
-    outputDir.delete()
+    val loader = Annoy.build(getEuclideanInput, 2, 10, Euclidean)
+    checkEuclideanResult(loader.getModel.query(10, 4))
+    loader.close()
   }
   
-  it should "create and query Euclidean memory index" in {
-    val inputFile = getEuclideanInputFile
-    
-    val annoy = Annoy.create(inputFile.pathAsString, 10, metric = Euclidean)
-    checkEuclideanResult(annoy.query(10, 4))
-  }
-  
-  def getAngularInputFile = {
-    val inputFile = File.newTemporaryFile()
-    inputFile.toJava.deleteOnExit()
-    inputFile.appendLines(Seq(
-      "10 2.0 0.0",
-      "11 1.0 1.0",
-      "12 0.0 3.0",
-      "13 -5.0 0.0"
-    ):_*)
-    
-    inputFile
+  def getAngularInput: Iterator[(Int, Array[Float])] = {
+    Iterator(
+      (10, Array(2.0f, 0.0f)),
+      (11, Array(1.0f, 1.0f)),
+      (12, Array(0.0f, 3.0f)),
+      (13, Array(-5.0f, 0.0f)))
   }
   
   def checkAngularResult(res: Option[Seq[(Int, Float)]]) = {
@@ -84,26 +55,9 @@ class AnnoySpec extends FlatSpec with Matchers {
   }
   
   it should "create/load and query Angular file index" in {
-    val inputFile = getAngularInputFile
-    
-    val outputDir = File.newTemporaryDirectory()
-    
-    val annoy = Annoy.create(inputFile.pathAsString, 10, outputDir.pathAsString, Angular)
-    checkAngularResult(annoy.query(10, 4))
-    
-    annoy.close()
-    
-    val annoyReload = Annoy.load(outputDir.pathAsString)
-    checkAngularResult(annoyReload.query(10, 4))
-
-    annoyReload.close()
-    outputDir.delete()
+    val loader = Annoy.build(getAngularInput, 2, 10, Angular)
+    checkAngularResult(loader.getModel.query(10, 4))
+    loader.close()
   }
   
-  it should "create and query Angular memory index" in {
-    val inputFile = getAngularInputFile
-    
-    val annoy = Annoy.create(inputFile.pathAsString, 10, metric = Angular)
-    checkAngularResult(annoy.query(10, 4))
-  }
 }
