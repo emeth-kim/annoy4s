@@ -8,6 +8,7 @@ lazy val root = (project in file(".")).settings(
   scalaVersion := "2.10.6",
   libraryDependencies ++= Seq(
     "net.java.dev.jna" % "jna" % "4.2.2",
+    "com.github.fommil" % "jniloader" % "1.1",
     "org.slf4s" %% "slf4s-api" % "1.7.12",
     //for test
     "org.scalatest" %% "scalatest" % "2.2.6" % "test",
@@ -24,8 +25,9 @@ lazy val root = (project in file(".")).settings(
     } else {
       libDir / "libannoy.so"
     }
-    val source = file("src/main/cpp/annoyjava.cpp")
-    val cmd = s"g++ -o ${lib.getAbsolutePath} -shared -fPIC ${source.getAbsolutePath}"
+    val sources = Seq("src/main/cpp/annoyjava.cpp", "src/main/cpp/annoyjni.cpp").map(file)
+    val javaHome = sys.props.get("java.home").get.split("/").dropRight(1).mkString("/")
+    val cmd = s"g++ -o ${lib.getAbsolutePath} -I${javaHome}/include -I${javaHome}/include/${Platform.RESOURCE_PREFIX} -shared -fPIC ${sources.map(_.getAbsolutePath).mkString(" ")}"
     println(cmd)
     import scala.sys.process._
     cmd.!

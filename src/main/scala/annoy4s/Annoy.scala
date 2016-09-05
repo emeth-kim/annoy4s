@@ -26,13 +26,10 @@ case class AnnoySingletonLoader(ids: Seq[Int], dimension: Int, metric: Metric, p
     if (model == null) {
       val idToIndex = ids.zipWithIndex.toMap
       val indexToId = ids
-      val annoyIndex = metric match {
-        case Angular => Annoy.annoyLib.createAngular(dimension)
-        case Euclidean => Annoy.annoyLib.createEuclidean(dimension)
-      }
-      Annoy.annoyLib.load(annoyIndex, path)
-      Annoy.annoyLib.verbose(annoyIndex, verbose)
-      model = new AnnoyModel(idToIndex, indexToId, annoyIndex, dimension)
+      val annoy = new annoy4j.Annoy(dimension, if (metric == Angular) annoy4j.Metric.Angular else annoy4j.Metric.Euclidean)
+      annoy.load(path)
+      annoy.verbose(verbose)
+      model = new AnnoyModel(idToIndex, indexToId, annoy)
     }
     model
   }
@@ -48,57 +45,47 @@ case class AnnoySingletonLoader(ids: Seq[Int], dimension: Int, metric: Metric, p
 class AnnoyModel(
   idToIndex: Map[Int, Int],
   indexToId: Seq[Int],
-  annoyIndex: Pointer,
-  dimension: Int
+  annoy: annoy4j.Annoy
 ) {
-  def close() = {
-    Annoy.annoyLib.deleteIndex(annoyIndex)
+
+  def close(): Unit = {
+    annoy.close()
   }
 
-  def query(vector: Seq[Float], maxReturnSize: Int) = {
-    val result = Array.fill(maxReturnSize)(-1)
-    val distances = Array.fill(maxReturnSize)(-1.0f)
-    Annoy.annoyLib.getNnsByVector(annoyIndex, vector.toArray, maxReturnSize, -1, result, distances)
-    result.toList.filter(_ != -1).map(indexToId.apply).zip(distances.toSeq)
+  def query(vector: Seq[Float], maxReturnSize: Int): Seq[(Int, Float)] = {
+    val r = annoy.getNnsByVector(vector.toArray, maxReturnSize)
+    r.getResult.filter(_ != -1).map(indexToId.apply).zip(r.getDistances)
   }
 
-  def query(id: Int, maxReturnSize: Int) = {
+  def query(id: Int, maxReturnSize: Int): Option[Seq[(Int, Float)]] = {
     idToIndex.get(id).map { index =>
-      val result = Array.fill(maxReturnSize)(-1)
-      val distances = Array.fill(maxReturnSize)(-1.0f)
-      Annoy.annoyLib.getNnsByItem(annoyIndex, index, maxReturnSize, -1, result, distances)
-      result.toList.filter(_ != -1).map(indexToId.apply).zip(distances.toSeq)
+      val r = annoy.getNnsByItem(index, maxReturnSize)
+      r.getResult.filter(_ != -1).map(indexToId.apply).zip(r.getDistances)
     }
   }
 }
 
 object Annoy {
 
-  val annoyLib = Native.loadLibrary("annoy", classOf[AnnoyLibrary]).asInstanceOf[AnnoyLibrary]
-
   def build(iterator: Iterator[(Int, Array[Float])],
     dimension: Int, numOfTrees: Int, metric: Metric = Angular,
     outputFile: String = "annoy-index", verbose: Boolean = false, cleanup: AnnoySingletonLoader => Unit = {l => }): AnnoySingletonLoader = {
 
-    val annoyIndex = metric match {
-      case Angular => annoyLib.createAngular(dimension)
-      case Euclidean => annoyLib.createEuclidean(dimension)
-    }
-
-    annoyLib.verbose(annoyIndex, verbose)
+    val annoy = new annoy4j.Annoy(dimension, if (metric == Angular) annoy4j.Metric.Angular else annoy4j.Metric.Euclidean)
+    annoy.verbose(verbose)
 
     var ids = new ListBuffer[Int]()
 
     var index = 0
     iterator.foreach { case (id, vector) =>
-      Annoy.annoyLib.addItem(annoyIndex, index, vector)
+      annoy.addItem(index, vector)
       index += 1
       ids += id
     }
 
-    annoyLib.build(annoyIndex, numOfTrees)
-    annoyLib.save(annoyIndex, outputFile)
-    annoyLib.deleteIndex(annoyIndex)
+    annoy.build(numOfTrees)
+    annoy.save(outputFile)
+    annoy.close()
 
     val idsList = ids.result()
     val loader = AnnoySingletonLoader(idsList, dimension, metric, outputFile, verbose)
