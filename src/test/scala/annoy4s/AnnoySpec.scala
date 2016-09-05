@@ -26,9 +26,9 @@ class AnnoySpec extends FlatSpec with Matchers {
       (13, Array(3.0f, 2.0f)))
   }
   
-  def checkEuclideanResult(res: Option[Seq[(Int, Float)]]) = {
-    res.get.map(_._1) shouldBe Seq(10, 11, 12, 13)
-    res.get.map(_._2).zip(Seq(0.0f, 1.0f, 1.414f, 2.236f)).foreach{
+  def checkEuclideanResult(res: Option[Array[(Int, Float)]]) = {
+    res.get.map(_._1) shouldBe Array(10, 11, 12, 13)
+    res.get.map(_._2).zip(Array(0.0f, 1.0f, 1.414f, 2.236f)).foreach{
       case (a, b) => a shouldBe b +- 0.001f
     }
   }
@@ -47,9 +47,9 @@ class AnnoySpec extends FlatSpec with Matchers {
       (13, Array(-5.0f, 0.0f)))
   }
   
-  def checkAngularResult(res: Option[Seq[(Int, Float)]]) = {
-    res.get.map(_._1) shouldBe Seq(10, 11, 12, 13)
-    res.get.map(_._2).zip(Seq(0.0f, 0.765f, 1.414f, 2.0f)).foreach{
+  def checkAngularResult(res: Option[Array[(Int, Float)]]) = {
+    res.get.map(_._1) shouldBe Array(10, 11, 12, 13)
+    res.get.map(_._2).zip(Array(0.0f, 0.765f, 1.414f, 2.0f)).foreach{
       case (a, b) => a shouldBe b +- 0.001f
     }
   }

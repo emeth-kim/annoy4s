@@ -3,8 +3,8 @@ package annoy4s
 import scala.util.Random
 
 object BMT extends App {
-  val dimension = 40
-  val numItems = 10000
+  val dimension = 50
+  val numItems = 1000000
   val numTrials = 1
 
   var s = System.currentTimeMillis()

@@ -14,11 +14,13 @@
 
 package annoy4s
 
+import java.util.UUID
+
 import com.sun.jna._
 
 import scala.collection.mutable.ListBuffer
 
-case class AnnoySingletonLoader(ids: Seq[Int], dimension: Int, metric: Metric, path: String, verbose: Boolean) {
+case class AnnoySingletonLoader(ids: Array[Int], dimension: Int, metric: Metric, path: String, verbose: Boolean) {
 
   var model: AnnoyModel = _
 
@@ -47,7 +49,7 @@ case class AnnoySingletonLoader(ids: Seq[Int], dimension: Int, metric: Metric, p
 
 class AnnoyModel(
   idToIndex: Map[Int, Int],
-  indexToId: Seq[Int],
+  indexToId: Array[Int],
   annoyIndex: Pointer,
   dimension: Int
 ) {
@@ -59,7 +61,7 @@ class AnnoyModel(
     val result = Array.fill(maxReturnSize)(-1)
     val distances = Array.fill(maxReturnSize)(-1.0f)
     Annoy.annoyLib.getNnsByVector(annoyIndex, vector.toArray, maxReturnSize, -1, result, distances)
-    result.toList.filter(_ != -1).map(indexToId.apply).zip(distances.toSeq)
+    result.toList.filter(_ != -1).map(indexToId.apply).zip(distances.toSeq).toArray
   }
 
   def query(id: Int, maxReturnSize: Int) = {
@@ -67,7 +69,7 @@ class AnnoyModel(
       val result = Array.fill(maxReturnSize)(-1)
       val distances = Array.fill(maxReturnSize)(-1.0f)
       Annoy.annoyLib.getNnsByItem(annoyIndex, index, maxReturnSize, -1, result, distances)
-      result.toList.filter(_ != -1).map(indexToId.apply).zip(distances.toSeq)
+      result.toList.filter(_ != -1).map(indexToId.apply).zip(distances.toSeq).toArray
     }
   }
 }
@@ -78,7 +80,8 @@ object Annoy {
 
   def build(iterator: Iterator[(Int, Array[Float])],
     dimension: Int, numOfTrees: Int, metric: Metric = Angular,
-    outputFile: String = "annoy-index", verbose: Boolean = false, cleanup: AnnoySingletonLoader => Unit = {l => }): AnnoySingletonLoader = {
+    outputFile: String = "annoy-index-" + UUID.randomUUID().toString,
+    verbose: Boolean = false, cleanup: AnnoySingletonLoader => Unit = {l => }): AnnoySingletonLoader = {
 
     val annoyIndex = metric match {
       case Angular => annoyLib.createAngular(dimension)
@@ -100,7 +103,7 @@ object Annoy {
     annoyLib.save(annoyIndex, outputFile)
     annoyLib.deleteIndex(annoyIndex)
 
-    val idsList = ids.result()
+    val idsList = ids.toArray
     val loader = AnnoySingletonLoader(idsList, dimension, metric, outputFile, verbose)
     cleanup(loader)
     loader

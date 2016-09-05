@@ -25,7 +25,7 @@ lazy val root = (project in file(".")).settings(
       libDir / "libannoy.so"
     }
     val source = file("src/main/cpp/annoyjava.cpp")
-    val cmd = s"g++ -o ${lib.getAbsolutePath} -shared -fPIC ${source.getAbsolutePath}"
+    val cmd = s"g++ -O3 -march=native -ffast-math -o ${lib.getAbsolutePath} -shared -fPIC ${source.getAbsolutePath}"
     println(cmd)
     import scala.sys.process._
     cmd.!
