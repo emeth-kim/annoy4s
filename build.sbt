@@ -3,15 +3,16 @@ import com.sun.jna.Platform
 val compileNative = taskKey[Unit]("Compile cpp into shared library.")
 
 lazy val root = (project in file(".")).settings(
-  name := "annoy4s",
-  version := "0.3.0-SNAPSHOT",
+  name := "spark-annoy",
+  version := "0.0.1-SNAPSHOT",
   scalaVersion := "2.10.6",
   libraryDependencies ++= Seq(
     "net.java.dev.jna" % "jna" % "4.2.2",
-    "org.slf4s" %% "slf4s-api" % "1.7.12",
+    "org.apache.spark" %% "spark-core" % "1.6.2" % "provided",
+    "org.apache.spark" %% "spark-mllib" % "1.6.2" % "provided",
+    "com.github.scopt" %% "scopt" % "3.2.0",
     //for test
-    "org.scalatest" %% "scalatest" % "2.2.6" % "test",
-    "org.slf4j" % "slf4j-simple" % "1.7.14" % "test"
+    "org.scalatest" %% "scalatest" % "2.2.6" % "test"
   ),
   fork := true,
   compileNative := {
