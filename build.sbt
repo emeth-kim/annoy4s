@@ -11,8 +11,10 @@ lazy val root = (project in file(".")).settings(
     "org.apache.spark" %% "spark-core" % "1.6.2" % "provided",
     "org.apache.spark" %% "spark-mllib" % "1.6.2" % "provided",
     "com.github.scopt" %% "scopt" % "3.2.0",
+    "com.github.fommil.netlib" % "all" % "1.1.2" pomOnly(),
     //for test
     "org.scalatest" %% "scalatest" % "2.2.6" % "test"
+
   ),
   fork := true,
   compileNative := {
